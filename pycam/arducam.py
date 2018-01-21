@@ -4,18 +4,32 @@ from ubinascii import hexlify
 
 from arducam_constants import *
 
-# Notes
+# IO Notes
 #   ESP32 can put the I2C SCL SDA on any GPIO -> default ports work
-#   SPI ??
+#   SPI-> (19: DC) (23: SCLK) (18: DIN)  (5: CS) -> online docks
+#   SPI-> (19: ?)  (23: SCK)  (18: MOSI) (5: CS) -> my translation
+#   Other names
+#       SCLK: SCK
+#       MOSI: SIMO, SDI, DI, DIN, SI, MTSR.
+#       MISO: SOMI, SDO, DO, DOUT, SO, MRST.
+#       SS: S̅S̅, SSEL, CS, C̅S̅, CE, nSS, /SS, SS#
 
 
 class Arducam(object):
+    default_sck_pin_num = -1
+    default_mosi_pin_num = -1
+    default_miso_pin_num = -1
 
-    def __init__(self, scl_pin_num=32, sda_pin_num=33, cs_pin_num=2, resolution=OV2640_320x240_JPEG):
+    def __init__(self, scl_pin_num=32, sda_pin_num=33, cs_pin_num=5, 
+                 sck_pin_num=-1, mosi_pin_num=-1, miso_pin_num=-1, 
+                 resolution=OV2640_320x240_JPEG):
         # Set pins
         self.scl_pin_num = scl_pin_num
         self.sda_pin_num = sda_pin_num
         self.cs_pin_num = cs_pin_num
+        self.sck_pin_num = sck_pin_num
+        self.mosi_pin_num = mosi_pin_num
+        self.miso_pin_num = miso_pin_num
         self.cs_pin = None
 
         self.resolution = resolution
@@ -24,10 +38,18 @@ class Arducam(object):
         self.setup_io()
 
     def setup_io(self):
-        self.doc_pins()
+        if self.sck_pin_num >= 0 and self.mosi_pin_num >= 0 and self.miso_pin_num >= 0:
+            sck_pin = Pin(self.sck_pin_num)
+            mosi_pin = Pin(self.mosi_pin_num)
+            miso_pin = Pin(self.miso_pin_num)
+            self.spi = SPI(1, baudrate=80000000, polarity=0, phase=0, 
+                           sck=sck_pin, mosi=mosi_pin, miso=miso_pin)
+        else:
+            self.spi = SPI(1, baudrate=80000000, polarity=0, phase=0)
 
-        self.spi = SPI(1, baudrate=80000000, polarity=0, phase=0)
-        self.i2c = I2C(scl=Pin(self.scl_pin_num), sda=Pin(self.sda_pin_num), freq=1000000)
+        scl_pin = Pin(self.scl_pin_num)
+        sda_pin = Pin(self.sda_pin_num)
+        self.i2c = I2C(scl=scl_pin, sda=sda_pin, freq=1000000)
 
         self.spi.init(baudrate=2000000)
 
@@ -65,13 +87,14 @@ class Arducam(object):
 
         current_register = self.is_register_correct()
         correct_type = self.is_correct_type()
+        self.doc_pins()
         
     def doc_pins(self):
         self.pin_docs = {
             'CS': str(self.cs_pin_num),
-            'MOSI': '?',
-            'MISO': '?',
-            'SCK': '?',
+            'MOSI': str(self.mosi_pin_num),
+            'MISO': str(self.miso_pin_num),
+            'SCK': str(self.sck_pin_num),
             'GND': 'G',
             'VCC': '3V',
             'SDA': str(self.sda_pin_num),
