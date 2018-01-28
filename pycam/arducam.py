@@ -6,8 +6,8 @@ from arducam_constants import *
 
 # IO Notes
 #   ESP32 can put the I2C SCL SDA on any GPIO -> default ports work
-#   SPI-> (19: DC) (23: SCLK) (18: DIN)  (5: CS) -> online docks
-#   SPI-> (19: ?)  (23: SCK)  (18: MOSI) (5: CS) -> my translation
+#   SPI-> (19: DC)   (23: SCLK) (18: DIN)  (5: CS) -> online docks
+#   SPI-> (19: MISO) (23: SCK)  (18: MOSI) (5: CS) -> my translation
 #   Other names
 #       SCLK: SCK
 #       MOSI: SIMO, SDI, DI, DIN, SI, MTSR.
@@ -21,7 +21,7 @@ class Arducam(object):
     default_miso_pin_num = -1
 
     def __init__(self, scl_pin_num=32, sda_pin_num=33, cs_pin_num=5, 
-                 sck_pin_num=-1, mosi_pin_num=-1, miso_pin_num=-1, 
+                 sck_pin_num=23, mosi_pin_num=18, miso_pin_num=19, 
                  resolution=OV2640_320x240_JPEG):
         # Set pins
         self.scl_pin_num = scl_pin_num
@@ -42,10 +42,10 @@ class Arducam(object):
             sck_pin = Pin(self.sck_pin_num)
             mosi_pin = Pin(self.mosi_pin_num)
             miso_pin = Pin(self.miso_pin_num)
-            self.spi = SPI(1, baudrate=80000000, polarity=0, phase=0, 
+            self.spi = SPI(1, baudrate=2000000, polarity=0, phase=0, 
                            sck=sck_pin, mosi=mosi_pin, miso=miso_pin)
         else:
-            self.spi = SPI(1, baudrate=80000000, polarity=0, phase=0)
+            self.spi = SPI(1, baudrate=2000000, polarity=0, phase=0)
 
         scl_pin = Pin(self.scl_pin_num)
         sda_pin = Pin(self.sda_pin_num)
@@ -54,11 +54,11 @@ class Arducam(object):
         self.spi.init(baudrate=2000000)
 
         # chip select -- active low
-        self.cs_pin = machine.Pin(self.cs_pin_num, Pin.OUT)
-        self.cs_pin.on()
+        self.cs_pin = Pin(self.cs_pin_num, Pin.OUT)
+        self.cs_pin.value(1)
 
         addrs = self.i2c.scan()
-        print('Arducam: devices detected on on i2c:')
+        print('Arducam: devices detected on i2c:')
         for a in addrs:
             print('0x%x' % a)
    
@@ -110,20 +110,20 @@ class Arducam(object):
 
         self.i2c.writeto_mem(addr, mem_addr, value)
 
-    def spi_write(address, value):
-        self.cs_pin.off()
+    def spi_write(self, address, value):
+        self.cs_pin.value(0)
         modebit = b'\x80'
         d = bytes([address[0] | modebit[0], value[0]])
         self.spi.write(d)
-        self.cs_pin.on()
+        self.cs_pin.value(1)
 
-    def spi_read(address):
-        self.cs_pin.off()
+    def spi_read(self, address):
+        self.cs_pin.value(0)
         maskbits = b'\x7f'
         wbuf = bytes([address[0] & maskbits[0]])
         self.spi.write(wbuf)
         buf = self.spi.read(1)
-        self.cs_pin.on()
+        self.cs_pin.value(1)
 
         return (buf)
 

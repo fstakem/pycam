@@ -18,8 +18,16 @@ Ctrl-a x
 
 # Rshell
 # Another program to connect to board
-pip install rshell
-rshell --buffer-size = 30 -p /dev/ttyUSB0
 
+# Install
+pip install rshell
+
+# Run
 rshell --port /dev/ttyUSB0 --baud 115200 --buffer-size 128 --editor nano
-sudo ./pycam_repl_env/bin/rshell --port /dev/ttyUSB0 --baud 115200 --buffer-size 128 --editor nano
+sudo ./pycam_repl_env/bin/rshell --port /dev/ttyUSB0 --baud 115200 --buffer-size 128 --editor vim
+
+# Copy files
+cp ./pycam/arducam.py /pyboard/arducam.py
+cp ./pycam/arducam_constants.py /pyboard/arducam_constants.py
+cp ./pycam/main.py /pyboard/main.py
+
