@@ -1,6 +1,8 @@
 from machine import SPI, I2C, Pin
 import time
 from ubinascii import hexlify
+import gc
+import uos
 
 from arducam_constants import *
 
@@ -155,5 +157,80 @@ class Arducam(object):
             print("Arducam: register test failed!")
             return False
 
-    def capture(self):
-        pass
+    def capture(self, filename, overwrite=True):
+        self.spi_write(b'\x04', b'\x01')
+        self.spi_write(b'\x04', b'\x02')
+        time.sleep_ms(10)
+
+        _ = self.spi_read(b'\x41')
+        count = 0
+
+        # read the image from the camera fifo
+        while True:
+            result = self.spi_read(b'\x41')
+            mask = b'\x08'
+
+            if result[0] & mask[0]:
+                break
+
+            time.sleep_ms(10)
+            count += 1
+
+            if count % 1000 == 0:
+                print('Stuck in loop')
+
+        # read the fifo size
+        b1 = self.spi_read(b'\x44')
+        b2 = self.spi_read(b'\x43')
+        b3 = self.spi_read(b'\x42')
+        val = b1[0] << 16 | b2[0] << 8 | b3[0] 
+        print("ov2640_capture: %d bytes in fifo" % val)
+        gc.collect()
+
+        if overwrite == True:
+            try:
+                uos.remove(filename)
+            except OSError:
+                pass
+
+        bytebuf = [0, 0]
+        picbuf = [b'\x00'] * PICBUFSIZE
+        l = 0
+        bp = 0
+
+        while bytebuf[0] != b'\xd9' or bytebuf[1] != b'\xff':
+            bytebuf[1] = bytebuf[0]
+
+            if bp > len(picbuf) - 1:
+                self.appendbuf(filename, picbuf, bp)
+                bp = 0
+    
+            bytebuf[0] = self.spi_read(b'\x3d')
+            l += 1
+            picbuf[bp] = bytebuf[0]
+            bp += 1
+
+        if (bp > 0):
+            self.appendbuf(filename, picbuf, bp)
+
+        print("read %d bytes from fifo, camera said %d were available" % (l, val))
+        
+        return (l)
+
+    def appendbuf(self, filename, picbuf, byte_num):
+        try:
+            f = open(filename, 'ab')
+            c = 1
+
+            for b in picbuf:
+                if c > byte_num:
+                    break
+
+                c += 1
+                f.write(bytes([b[0]]))
+
+            f.close()
+        except OSError:
+            print("error writing file")
+
+        print("wrote %d bytes from buffer" % byte_num)
