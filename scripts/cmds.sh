@@ -31,3 +31,6 @@ cp ./pycam/arducam.py /pyboard/arducam.py
 cp ./pycam/arducam_constants.py /pyboard/arducam_constants.py
 cp ./pycam/main.py /pyboard/main.py
 
+# Flash new firmware with esptool
+sudo ~/envs/upy_env/bin/esptool.py --chip esp32 -p /dev/ttyUSB0 write_flash -z 0x1000 <firmware_path>
+
